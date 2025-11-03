@@ -1,12 +1,19 @@
 // relayer.js
 const express = require('express');
 const { ethers } = require('ethers');
+require("dotenv").config();
+const MinimalForwarderABI = require("./abi/MinimalForwarder.json").abi;
+
 
 const app = express();
 app.use(express.json());
 
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', forwarderAddress: forwarder.address });
+});
+
 // Initialize provider and relayer wallet
-const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 const relayerWallet = new ethers.Wallet(process.env.RELAYER_PRIVATE_KEY, provider);
 
 // Forwarder contract
@@ -39,7 +46,7 @@ app.post('/relay', async (req, res) => {
             ]
         };
 
-        const recoveredAddress = ethers.utils.verifyTypedData(
+        const recoveredAddress = ethers.verifyTypedData(
             domain,
             types,
             request,
