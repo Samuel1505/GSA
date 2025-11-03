@@ -9,8 +9,9 @@ async function main() {
   const forwarderAddress = await forwarder.getAddress();
   console.log("MinimalForwarder deployed to:", forwarderAddress);
 
+
   console.log("Deploying PrizePoolPredictionGasless...");
-  
+
   const PrizePoolPredictionGasless = await ethers.getContractFactory("PrizePoolPredictionGasless");
   const prediction = await PrizePoolPredictionGasless.deploy(forwarderAddress);
   await prediction.waitForDeployment();
