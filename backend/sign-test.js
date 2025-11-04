@@ -4,7 +4,7 @@ const MinimalForwarderABI = require('./src/abi/MinimalForwarder.json').abi;   //
 
 async function generateTestRequest() {
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-    const signer = new ethers.Wallet('3efc2330dbac229cbd0f163540426edf83c0e5317312a2fc4c2bb03fb54842c0', provider);  // Use a test wallet (e.g., new one with Sepolia faucet ETH)
+    const signer = new ethers.Wallet('PRIVATE_KEY', provider);  // Use a test wallet (e.g., new one with Sepolia faucet ETH)
     const forwarderAddress = process.env.FORWARDER_ADDRESS;
     const forwarder = new ethers.Contract(forwarderAddress, MinimalForwarderABI, provider);
 
