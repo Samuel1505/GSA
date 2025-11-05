@@ -1,10 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ConnectButton } from "thirdweb/react";
-import { createWallet } from "thirdweb/wallets";
-import { sepolia, polygon, base } from "thirdweb/chains"; 
-import { client } from "../app/lib/thirdweb";
 
 export default function Header() {
   return (
@@ -16,11 +12,11 @@ export default function Header() {
             <span className="text-cosmic-purple">t</span>
             <span className="text-cosmic-blue">r</span>
             <span className="text-cosmic-purple">e</span>
-            <span className="text-cosmic-purple">a</span>
-            <span className="text-cosmic-purple">k</span>
-            <span className="text-cosmic-purple">B</span>
-            <span className="text-cosmic-purple">e</span>
-            <span className="text-cosmic-purple">t</span>
+             <span className="text-cosmic-purple">a</span>
+              <span className="text-cosmic-purple">k</span>
+               <span className="text-cosmic-purple">B</span>
+                <span className="text-cosmic-purple">e</span>
+                 <span className="text-cosmic-purple">t</span>
           </div>
         </div>
         
@@ -39,21 +35,9 @@ export default function Header() {
           </Link>
         </div>
         
-        {/* Replace the button with ConnectButton */}
-        <ConnectButton
-          client={client}
-          wallets={[
-            createWallet("io.metamask"),
-            createWallet("com.coinbase.wallet"),
-            createWallet("me.rainbow"),
-            createWallet("com.trustwallet.app"),
-          ]}
-          chain={base} // Change to your preferred chain
-          accountAbstraction={{
-            chain: base, // Smart account chain (use sepolia for testing)
-            sponsorGas: true, // Enable gasless transactions
-          }}
-        />
+        <button className="bg-cosmic-blue hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-medium transition-all hover:shadow-lg hover:shadow-cosmic-blue/50">
+          <appkit-button />
+        </button>
       </nav>
     </header>
   );

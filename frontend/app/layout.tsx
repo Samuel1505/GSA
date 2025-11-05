@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { Rubik } from "next/font/google";
 import "./globals.css";
-import { headers } from 'next/headers'
-import ContextProvider from './context'
 
 const rubik = Rubik({
   variable: "--font-rubik",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
 });
+
+import { headers } from 'next/headers' // added
+import ContextProvider from './context/index'
 
 export const metadata: Metadata = {
   title: "Predict the Future of Crypto",
@@ -20,6 +21,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>){
+
   const headersObj = await headers();
   const cookies = headersObj.get('cookie')
 
@@ -28,6 +30,7 @@ export default async function RootLayout({
       <body className={`${rubik.variable} antialiased`}>
         <ContextProvider cookies={cookies}>
           {children}
+
         </ContextProvider>
       </body>
     </html>

@@ -1,29 +1,46 @@
-const { ethers } = require("hardhat");
+import { ethers, run, network } from "hardhat";
 
 async function main() {
-  console.log("Deploying MinimalForwarder...");
-
-  const MinimalForwarder = await ethers.getContractFactory("MinimalForwarder");
-  const forwarder = await MinimalForwarder.deploy();
-  await forwarder.waitForDeployment(); // 
-  const forwarderAddress = await forwarder.getAddress();
-  console.log("MinimalForwarder deployed to:", forwarderAddress);
-
-
-  console.log("Deploying PrizePoolPredictionGasless...");
-
-  const PrizePoolPredictionGasless = await ethers.getContractFactory("PrizePoolPredictionGasless");
-  const prediction = await PrizePoolPredictionGasless.deploy(forwarderAddress);
-  await prediction.waitForDeployment();
-  const predictionAddress = await prediction.getAddress();
-  console.log("PrizePoolPredictionGasless deployed to:", predictionAddress);
-
-  return { forwarderAddress, predictionAddress };
+  console.log(`Deploying to network: ${network.name}`);
+  
+  const PrizePoolPrediction = await ethers.getContractFactory("PrizePoolPrediction");
+  
+  console.log("Deploying PrizePoolPrediction contract...");
+  const prizePoolPrediction = await PrizePoolPrediction.deploy(); 
+  
+  await prizePoolPrediction.waitForDeployment();
+  
+  const contractAddress = await prizePoolPrediction.getAddress();
+  console.log(`PrizePoolPrediction contract deployed to: ${contractAddress}`);
+  
+  // Only verify on non-local networks
+  if (network.name !== "hardhat" && network.name !== "localhost") {
+    // Wait for block confirmations
+    const confirmations = network.name === "mainnet" ? 6 : 5;
+    console.log(`Waiting for ${confirmations} block confirmations...`);
+    await prizePoolPrediction.deploymentTransaction()?.wait(confirmations);
+    
+    // Verify the contract
+    console.log("Verifying contract on Etherscan...");
+    try {
+      await run("verify:verify", {
+        address: contractAddress,
+        constructorArguments: [],
+      });
+      console.log("Contract verified successfully!");
+    } catch (error: any) {
+      if (error.message.toLowerCase().includes("already verified")) {
+        console.log("Contract is already verified!");
+      } else {
+        console.error("Verification failed:", error);
+      }
+    }
+  } else {
+    console.log("Skipping verification on local network");
+  }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error("Error deploying:", error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
