@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { ethers } from "ethers";
 import Header from "@/components/Header";
 import Image from "next/image";
 import { ThumbsUp, ThumbsDown, ArrowLeft, Users, TrendingUp, Clock } from "lucide-react";
 import Link from "next/link";
 import { formatTimeRemaining, formatPercentage, formatVolume } from "../utils";
-import { PrizePredictionContract } from "../../../app/ABIs/index";
-import PrizePoolPredictionABI from "../../../app/ABIs/Prediction.json";
+import { useActiveAccount, useActiveWallet } from "thirdweb/react";
+import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
+import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
+import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
+import { formatEther, parseEther } from "viem";
+import { useRouter } from "next/navigation";
 
 interface MarketDetail {
   id: string;
@@ -34,7 +37,11 @@ interface MarketDetail {
 
 export default function MarketDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const marketId = params.id as string;
+  const account = useActiveAccount();
+  const wallet = useActiveWallet();
+  const userAddress = account?.address || "";
   
   const [market, setMarket] = useState<MarketDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,49 +49,39 @@ export default function MarketDetailPage() {
   const [tradeAmount, setTradeAmount] = useState("");
   const [selectedOption, setSelectedOption] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [userAddress, setUserAddress] = useState<string>("");
+
+  // Get contract instance
+  const contract = getContract({
+    client,
+    chain,
+    address: CONTRACT_ADDRESS,
+    abi: PrizePoolPredictionABI.abi as any,
+  });
 
   useEffect(() => {
     fetchMarketDetail();
-    connectWallet();
   }, [marketId]);
-
-  const connectWallet = async () => {
-    try {
-      if (typeof window.ethereum !== "undefined") {
-        const provider = new ethers.BrowserProvider(window.ethereum as any);
-        const signer = await provider.getSigner();
-        const address = await signer.getAddress();
-        setUserAddress(address);
-      }
-    } catch (err) {
-      console.error("Error connecting wallet:", err);
-    }
-  };
 
   const fetchMarketDetail = async () => {
     try {
       setLoading(true);
       setError("");
 
-      if (typeof window.ethereum === "undefined") {
-        setError("Please install MetaMask to view market details");
-        setLoading(false);
-        return;
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum as any);
-      const contract = new ethers.Contract(
-        PrizePredictionContract.address,
-        PrizePoolPredictionABI.abi,
-        provider
-      );
-
       // Fetch prediction details
-      const prediction = await contract.getPrediction(marketId);
+      // @ts-expect-error - ABI type is complex, using any for flexibility
+      const prediction = await readContract({
+        contract,
+        method: "function getPrediction(uint256 predictionId) returns (tuple(uint256 id, string question, string[] options, uint256 entryFee, uint256 prizePool, uint256 endTime, uint256 resolutionTime, bool resolved, uint256 winningOption, bool active, address creator, uint256 totalParticipants))",
+        params: [BigInt(marketId)],
+      }) as any;
       
       // Fetch option statistics
-      const optionStats = await contract.getAllOptionStats(marketId);
+      // @ts-expect-error - ABI type is complex, using any for flexibility
+      const optionStats = await readContract({
+        contract,
+        method: "function getAllOptionStats(uint256 predictionId) returns (tuple(uint256[] counts, uint256[] percentages))",
+        params: [BigInt(marketId)],
+      }) as any;
       const counts = optionStats.counts;
       const percentages = optionStats.percentages;
 
@@ -99,8 +96,8 @@ export default function MarketDetailPage() {
         id: prediction.id.toString(),
         question: prediction.question,
         options,
-        entryFee: ethers.formatEther(prediction.entryFee),
-        prizePool: ethers.formatEther(prediction.prizePool),
+        entryFee: formatEther(BigInt(prediction.entryFee.toString())),
+        prizePool: formatEther(BigInt(prediction.prizePool.toString())),
         endTime: new Date(Number(prediction.endTime) * 1000),
         resolutionTime: new Date(Number(prediction.resolutionTime) * 1000),
         resolved: prediction.resolved,
@@ -124,54 +121,79 @@ export default function MarketDetailPage() {
 
   const handleSubmitPrediction = async () => {
     if (!market || !tradeAmount || parseFloat(tradeAmount) <= 0) return;
+    if (!account) {
+      setError("Please connect your wallet first.");
+      return;
+    }
+
+    // Check if user has smart wallet - REQUIRED for transactions
+    let isSmartWallet = false;
+    try {
+      if (wallet?.id === "smart") {
+        isSmartWallet = true;
+      } else if (account && "sendBatchTransaction" in account) {
+        isSmartWallet = true;
+      }
+    } catch (e) {
+      console.error("Error checking wallet:", e);
+    }
+
+    if (!isSmartWallet) {
+      setError("Smart wallet required! Please create your smart wallet first to make transactions. Redirecting...");
+      setTimeout(() => {
+        router.push("/setup-wallet");
+      }, 2000);
+      return;
+    }
 
     try {
       setSubmitting(true);
       setError("");
 
-      if (typeof window.ethereum === "undefined") {
-        throw new Error("Please install MetaMask!");
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum as any);
-      await provider.send("eth_requestAccounts", []);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(
-        PrizePredictionContract.address,
-        PrizePoolPredictionABI.abi,
-        signer
-      );
-
       // Validate entry fee matches
-      const entryFeeWei = ethers.parseEther(market.entryFee);
-      const userAmountWei = ethers.parseEther(tradeAmount);
+      const entryFeeWei = parseEther(market.entryFee);
+      const userAmountWei = parseEther(tradeAmount);
 
       if (userAmountWei !== entryFeeWei) {
         throw new Error(`Entry fee must be exactly ${market.entryFee} ETH`);
       }
 
       // Check if user already predicted
-      const userPrediction = await contract.getUserPrediction(marketId, userAddress);
-      if (userPrediction.timestamp > 0) {
+      // @ts-expect-error - ABI type is complex, using any for flexibility
+      const userPrediction = await readContract({
+        contract,
+        method: "function getUserPrediction(uint256 predictionId, address user) returns (tuple(uint256 option, bool claimed, uint256 timestamp))",
+        params: [BigInt(marketId), userAddress],
+      }) as any;
+      if (userPrediction.timestamp > BigInt(0)) {
         throw new Error("You have already made a prediction on this market");
       }
 
-      console.log("Submitting prediction:", {
+      console.log("Submitting prediction (gasless):", {
         marketId,
         optionIndex: selectedOption,
         amount: tradeAmount,
       });
 
-      // Submit prediction
-      const tx = await contract.submitPrediction(
-        marketId,
-        selectedOption,
-        { value: entryFeeWei }
-      );
+      // Prepare contract call with Thirdweb (gasless via smart wallet!)
+      const transaction = prepareContractCall({
+        contract,
+        method: "function submitPrediction(uint256 predictionId, uint256 optionIndex)",
+        params: [BigInt(marketId), BigInt(selectedOption)],
+        value: entryFeeWei,
+      });
 
-      setError("Transaction submitted! Waiting for confirmation...");
-      await tx.wait();
+      // Send transaction (gasless with smart wallet!)
+      setError("Transaction submitted! Waiting for confirmation... (Gasless!)");
+      
+      const result = await sendTransaction({
+        transaction,
+        account, // Smart wallet account - gas is sponsored!
+      });
 
+      // Wait a bit for transaction to be mined
+      // The transaction is already submitted and confirmed by the smart wallet
+      await new Promise(resolve => setTimeout(resolve, 2000));
       setError("Prediction submitted successfully! ✅");
       
       // Refresh market data
@@ -183,7 +205,7 @@ export default function MarketDetailPage() {
 
     } catch (err: any) {
       console.error("Error submitting prediction:", err);
-      if (err.code === "ACTION_REJECTED" || err.code === 4001) {
+      if (err.message?.includes("rejected") || err.message?.includes("User denied")) {
         setError("Transaction cancelled by user.");
       } else {
         setError(err.message || "Failed to submit prediction.");

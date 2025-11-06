@@ -10,6 +10,8 @@ const rubik = Rubik({
 
 import { headers } from 'next/headers' // added
 import ContextProvider from './context/index'
+import SmartWalletGuard from '@/components/SmartWalletGuard'
+import ToastProvider from '@/components/ToastProvider'
 
 export const metadata: Metadata = {
   title: "Predict the Future of Crypto",
@@ -29,8 +31,10 @@ export default async function RootLayout({
     <html lang="en">
       <body className={`${rubik.variable} antialiased`}>
         <ContextProvider cookies={cookies}>
-          {children}
-
+          <SmartWalletGuard>
+            {children}
+          </SmartWalletGuard>
+          <ToastProvider />
         </ContextProvider>
       </body>
     </html>
