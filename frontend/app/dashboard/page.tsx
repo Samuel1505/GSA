@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ethers } from "ethers";
 import Header from "@/components/Header";
 import StatCard from "@/components/dashboard/StatCard";
 import TabNavigation from "@/components/dashboard/TabNavigation";
 import ActivityItem from "@/components/dashboard/ActivityItem";
 import { Target, Trophy, DollarSign, Wallet, TrendingUp, Award } from "lucide-react";
 import type { DashboardTab, RecentActivity } from "./types";
-import { PrizePredictionContract } from "../../app/ABIs/index";
-import PrizePoolPredictionABI from "../../app/ABIs/Prediction.json";
 import Link from "next/link";
+import { useActiveAccount } from "thirdweb/react";
+import { getContract, readContract } from "thirdweb";
+import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
+import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
+import { formatEther, parseUnits } from "thirdweb/utils";
 
 interface UserStats {
   totalPredictions: number;
@@ -45,65 +47,82 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [userAddress, setUserAddress] = useState("");
+  
+  const account = useActiveAccount();
+  const userAddress = account?.address || "";
+
+  // Get contract instance
+  const contract = getContract({
+    client,
+    chain,
+    address: CONTRACT_ADDRESS,
+    abi: PrizePoolPredictionABI.abi,
+  });
 
   useEffect(() => {
-    connectAndFetchData();
-  }, []);
+    if (account?.address) {
+      fetchData();
+    } else {
+      setLoading(false);
+      setError("Please connect your wallet to view your dashboard");
+    }
+  }, [account?.address]);
 
-  const connectAndFetchData = async () => {
+  const fetchData = async () => {
+    if (!account?.address) return;
+
     try {
       setLoading(true);
       setError("");
 
-      if (typeof window.ethereum === "undefined") {
-        setError("Please install MetaMask to view your dashboard");
-        setLoading(false);
-        return;
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum as any);
-      await provider.send("eth_requestAccounts", []);
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-      setUserAddress(address);
-
-      console.log("Connected wallet:", address);
-
-      const contract = new ethers.Contract(
-        PrizePredictionContract.address,
-        PrizePoolPredictionABI.abi,
-        provider
-      );
-
-      // Fetch user stats from contract
-      const stats = await contract.getUserStats(address);
+      // Fetch user stats from contract using readContract
+      const stats = await readContract({
+        contract,
+        method: "function getUserStats(address user) returns (tuple(uint256 totalPredictions, uint256 correctPredictions, uint256 currentStreak, uint256 longestStreak, uint256 totalWinnings, uint256 accuracyPercentage, bool hasStreakSaver, uint256 totalPoints))",
+        params: [account.address],
+      });
       
-      // Fetch wallet balance
-      const balance = await provider.getBalance(address);
+      // Get balance from chain using RPC
+      const balanceResult = await fetch("https://sepolia.base.org", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "eth_getBalance",
+          params: [account.address, "latest"],
+        }),
+      }).then((r) => r.json()).catch(() => ({ result: "0x0" }));
+      
+      const balanceWei = BigInt(balanceResult.result || "0x0");
+      const balanceStr = formatEther(balanceWei);
 
       const userStatsData: UserStats = {
         totalPredictions: Number(stats.totalPredictions),
         correctPredictions: Number(stats.correctPredictions),
         currentStreak: Number(stats.currentStreak),
         longestStreak: Number(stats.longestStreak),
-        totalWinnings: ethers.formatEther(stats.totalWinnings),
+        totalWinnings: formatEther(BigInt(stats.totalWinnings.toString())),
         accuracyPercentage: Number(stats.accuracyPercentage) / 100, // Convert from basis points
         hasStreakSaver: stats.hasStreakSaver,
         totalPoints: Number(stats.totalPoints),
-        walletBalance: ethers.formatEther(balance),
+        walletBalance: balanceStr,
       };
 
       console.log("User stats:", userStatsData);
       setUserStats(userStatsData);
 
       // Fetch user's participated predictions
-      const participatedPredictionIds = await contract.getUserParticipatedPredictions(address);
+      const participatedPredictionIds = await readContract({
+        contract,
+        method: "function getUserParticipatedPredictions(address user) returns (uint256[])",
+        params: [account.address],
+      });
       console.log("Participated predictions:", participatedPredictionIds);
 
       // Fetch details for each participated prediction
       const betsPromises = participatedPredictionIds.map((id: bigint) =>
-        fetchBetDetails(contract, Number(id), address)
+        fetchBetDetails(Number(id), account.address)
       );
       const bets = await Promise.all(betsPromises);
       const validBets = bets.filter((bet): bet is ActiveBet => bet !== null);
@@ -126,23 +145,34 @@ export default function DashboardPage() {
   };
 
   const fetchBetDetails = async (
-    contract: ethers.Contract,
     predictionId: number,
     userAddress: string
   ): Promise<ActiveBet | null> => {
     try {
       // Fetch prediction details
-      const prediction = await contract.getPrediction(predictionId);
+      const prediction = await readContract({
+        contract,
+        method: "function getPrediction(uint256 predictionId) returns (tuple(uint256 id, string question, string[] options, uint256 entryFee, uint256 prizePool, uint256 endTime, uint256 resolutionTime, bool resolved, uint256 winningOption, bool active, address creator, uint256 totalParticipants))",
+        params: [BigInt(predictionId)],
+      });
       
       // Fetch user's prediction
-      const userPrediction = await contract.getUserPrediction(predictionId, userAddress);
+      const userPrediction = await readContract({
+        contract,
+        method: "function getUserPrediction(uint256 predictionId, address user) returns (tuple(uint256 option, bool claimed, uint256 timestamp))",
+        params: [BigInt(predictionId), userAddress],
+      });
       
       if (userPrediction.timestamp === BigInt(0)) {
         return null; // User hasn't predicted on this market
       }
 
       // Fetch user's prize status
-      const prizeStatus = await contract.getUserPrizeStatus(predictionId, userAddress);
+      const prizeStatus = await readContract({
+        contract,
+        method: "function getUserPrizeStatus(uint256 predictionId, address user) returns (tuple(bool hasWon, uint256 prizeAmount))",
+        params: [BigInt(predictionId), userAddress],
+      });
 
       const endTime = new Date(Number(prediction.endTime) * 1000);
       const now = new Date();
@@ -161,11 +191,11 @@ export default function DashboardPage() {
         question: prediction.question,
         selectedOption: prediction.options[Number(userPrediction.option)],
         optionIndex: Number(userPrediction.option),
-        entryFee: ethers.formatEther(prediction.entryFee),
+        entryFee: formatEther(BigInt(prediction.entryFee.toString())),
         timestamp: new Date(Number(userPrediction.timestamp) * 1000),
         endTime,
         status,
-        prizeAmount: prizeStatus.hasWon ? ethers.formatEther(prizeStatus.prizeAmount) : undefined,
+        prizeAmount: prizeStatus.hasWon ? formatEther(BigInt(prizeStatus.prizeAmount.toString())) : undefined,
         claimed: userPrediction.claimed,
         totalParticipants: Number(prediction.totalParticipants),
       };

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { ConnectButton } from "thirdweb/react";
+import { client, smartWalletConfig, inAppWalletConfig } from "@/app/config/thirdweb";
 
 export default function Header() {
   return (
@@ -35,9 +37,14 @@ export default function Header() {
           </Link>
         </div>
         
-        <button className="bg-cosmic-blue hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-medium transition-all hover:shadow-lg hover:shadow-cosmic-blue/50">
-          <appkit-button />
-        </button>
+        <ConnectButton
+          client={client}
+          wallets={[smartWalletConfig, inAppWalletConfig]}
+          connectButton={{
+            label: "Connect Wallet",
+            className: "bg-cosmic-blue hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-medium transition-all hover:shadow-lg hover:shadow-cosmic-blue/50"
+          }}
+        />
       </nav>
     </header>
   );

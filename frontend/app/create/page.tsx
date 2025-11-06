@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ethers } from "ethers";
 import Header from "@/components/Header";
 import FormField from "@/components/create/FormField";
 import ThumbnailUpload from "@/components/create/ThumbnailUpload";
 import CreateButton from "@/components/create/CreateButton";
-import { PrizePredictionContract } from "../../app/ABIs/index";
-import PrizePoolPredictionABI from "../../app/ABIs/Prediction.json";
+import { useActiveAccount } from "thirdweb/react";
+import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
+import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
+import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
+import { parseEther, toUnits } from "thirdweb/utils";
 
 export default function CreateMarket() {
   const router = useRouter();
+  const account = useActiveAccount();
   const [formData, setFormData] = useState({
     marketQuestion: "",
     entryFee: "",
@@ -24,6 +27,14 @@ export default function CreateMarket() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Get contract instance
+  const contract = getContract({
+    client,
+    chain,
+    address: CONTRACT_ADDRESS,
+    abi: PrizePoolPredictionABI.abi,
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -33,33 +44,15 @@ export default function CreateMarket() {
       return;
     }
 
+    if (!account) {
+      setError("Please connect your wallet first.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      // Check MetaMask
-      if (typeof window.ethereum === "undefined") {
-        throw new Error("Please install MetaMask!");
-      }
-
-      // Connect to provider and signer
-      const provider = new ethers.BrowserProvider(window.ethereum as any);
-      await provider.send("eth_requestAccounts", []);
-      const signer = await provider.getSigner();
-      const userAddress = await signer.getAddress();
-      console.log("Connected wallet:", userAddress);
-
-      // Check network
-      const network = await provider.getNetwork();
-      console.log("Connected to network:", network.name, "chainId:", network.chainId);
-
-      // Create contract instance
-      const contract = new ethers.Contract(
-        PrizePredictionContract.address,
-        PrizePoolPredictionABI.abi,
-        signer
-      );
-
       // Prepare and validate parameters
       const question = formData.marketQuestion.trim();
       if (question.length === 0) {
@@ -78,7 +71,7 @@ export default function CreateMarket() {
       // Parse entry fee
       let entryFeeWei: bigint;
       try {
-        entryFeeWei = ethers.parseEther(formData.entryFee);
+        entryFeeWei = parseEther(formData.entryFee);
         if (entryFeeWei <= BigInt(0)) {
           throw new Error("Entry fee must be greater than 0");
         }
@@ -89,7 +82,7 @@ export default function CreateMarket() {
       // Parse initial prize pool
       let initialPrizePoolWei: bigint;
       try {
-        initialPrizePoolWei = ethers.parseEther(formData.initialPrizePool);
+        initialPrizePoolWei = parseEther(formData.initialPrizePool);
         if (initialPrizePoolWei <= BigInt(0)) {
           throw new Error("Initial prize pool must be greater than 0");
         }
@@ -142,118 +135,47 @@ export default function CreateMarket() {
       console.log("Prepared params:", {
         question,
         optionsArray,
-        entryFee: ethers.formatEther(entryFeeWei) + " ETH",
+        entryFee: formData.entryFee + " ETH",
         endTimeUnix,
-        endTimeDate: new Date(endTimeUnix * 1000).toISOString(),
-        timeUntilEnd: `${Math.floor(timeUntilEnd / 3600)} hours`,
-        resolutionTimeUnix,
-        resolutionTimeDate: new Date(resolutionTimeUnix * 1000).toISOString(),
-        resolutionPeriod: `${Math.floor(resolutionPeriod / 3600)} hours`,
-        initialPrizePool: ethers.formatEther(initialPrizePoolWei) + " ETH",
+        initialPrizePool: formData.initialPrizePool + " ETH",
       });
 
-      // Check wallet balance
-      const balance = await provider.getBalance(userAddress);
-      console.log("Wallet balance:", ethers.formatEther(balance), "ETH");
+      // Prepare contract call with Thirdweb (gasless via smart wallet!)
+      const transaction = prepareContractCall({
+        contract,
+        method: "function createPrediction(string question, string[] options, uint256 entryFee, uint256 endTime, uint256 resolutionTime)",
+        params: [question, optionsArray, entryFeeWei, BigInt(endTimeUnix), BigInt(resolutionTimeUnix)],
+        value: initialPrizePoolWei,
+      });
+
+      // Send transaction (gasless with smart wallet!)
+      console.log("Sending gasless transaction...");
+      setError("Transaction submitted! Waiting for confirmation... (Gasless!)");
       
-      if (balance < initialPrizePoolWei) {
-        throw new Error(`Insufficient balance. You need at least ${ethers.formatEther(initialPrizePoolWei)} ETH.`);
-      }
+      const result = await sendTransaction({
+        transaction,
+        account, // Smart wallet account - gas is sponsored!
+      });
 
-      // Estimate gas first to catch revert errors early
-      console.log("Estimating gas...");
-      try {
-        const gasEstimate = await contract.createPrediction.estimateGas(
-          question,
-          optionsArray,
-          entryFeeWei,
-          endTimeUnix,
-          resolutionTimeUnix,
-          { value: initialPrizePoolWei }
-        );
-        console.log("Gas estimate:", gasEstimate.toString());
-      } catch (gasError: any) {
-        console.error("Gas estimation failed:", gasError);
-        
-        // Try to decode the revert reason
-        let errorMessage = "Transaction would fail. ";
-        
-        if (gasError.message) {
-          if (gasError.message.includes("End time must be in future")) {
-            errorMessage += "End time must be in the future.";
-          } else if (gasError.message.includes("Resolution time must be after end time")) {
-            errorMessage += "Resolution time must be after end time.";
-          } else if (gasError.message.includes("Question cannot be empty")) {
-            errorMessage += "Question cannot be empty.";
-          } else if (gasError.message.includes("Must have at least 2 options")) {
-            errorMessage += "Must have at least 2 options.";
-          } else if (gasError.message.includes("Entry fee must be greater than 0")) {
-            errorMessage += "Entry fee must be greater than 0.";
-          } else if (gasError.message.includes("Must provide initial prize pool")) {
-            errorMessage += "Must provide initial prize pool.";
-          } else if (gasError.message.includes("Prediction must last at least 1 hour")) {
-            errorMessage += "Prediction must last at least 1 hour from now.";
-          } else if (gasError.message.includes("Resolution period must be at least 1 hour")) {
-            errorMessage += "Resolution time must be at least 1 hour after end time.";
-          } else {
-            errorMessage += gasError.message;
-          }
-        } else {
-          errorMessage += "Please check your parameters.";
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      // Send transaction
-      console.log("Sending transaction...");
-      setError("Transaction submitted! Waiting for confirmation...");
-      
-      const tx = await contract.createPrediction(
-        question,
-        optionsArray,
-        entryFeeWei,
-        endTimeUnix,
-        resolutionTimeUnix,
-        { value: initialPrizePoolWei }
-      );
-
-      console.log("Transaction sent:", tx.hash);
+      console.log("Transaction sent:", result.transactionHash);
       setError("Transaction confirmed! Processing...");
 
       // Wait for confirmation
-      const receipt = await tx.wait();
-      console.log("✅ Transaction confirmed! Block:", receipt?.blockNumber);
+      await result.waitForReceipt();
+      console.log("✅ Transaction confirmed!");
 
-      // Try to get the new prediction ID from events
+      // Get the new prediction ID from counter
       let newPredictionId: string | null = null;
-      if (receipt?.logs) {
-        for (const log of receipt.logs) {
-          try {
-            const parsed = contract.interface.parseLog({
-              topics: [...log.topics],
-              data: log.data,
-            });
-            if (parsed?.name === "PredictionCreated") {
-              newPredictionId = parsed.args[0].toString();
-              console.log("New Prediction ID from event:", newPredictionId);
-              break;
-            }
-          } catch {
-            // Skip logs we can't parse
-          }
-        }
-      }
-
-      // Fallback: get from counter
-      if (!newPredictionId) {
-        try {
-          const counter = await contract.predictionCounter();
-          newPredictionId = counter.toString();
-          console.log("New Prediction ID from counter:", newPredictionId);
-        } catch (e) {
-          console.error("Failed to get prediction counter:", e);
-        }
+      try {
+        const counter = await readContract({
+          contract,
+          method: "function predictionCounter() returns (uint256)",
+          params: [],
+        });
+        newPredictionId = counter.toString();
+        console.log("New Prediction ID from counter:", newPredictionId);
+      } catch (e) {
+        console.error("Failed to get prediction counter:", e);
       }
 
       // Navigate to markets page
@@ -262,12 +184,8 @@ export default function CreateMarket() {
       console.error("Error creating prediction:", err);
       
       // User rejected transaction
-      if (err.code === "ACTION_REJECTED" || err.code === 4001) {
+      if (err.message?.includes("rejected") || err.message?.includes("User denied")) {
         setError("Transaction cancelled by user.");
-      } 
-      // Network error
-      else if (err.code === "NETWORK_ERROR") {
-        setError("Network error. Please check your connection and try again.");
       }
       // Generic error
       else {

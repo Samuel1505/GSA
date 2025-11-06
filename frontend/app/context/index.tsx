@@ -6,6 +6,8 @@ import { createAppKit } from '@reown/appkit/react'
 import { baseSepolia } from '@reown/appkit/networks'
 import React, { type ReactNode } from 'react'
 import { cookieToInitialState, WagmiProvider, type Config } from 'wagmi'
+import { ThirdwebProvider } from 'thirdweb/react'
+import { client } from '../config/thirdweb'
 
 // Set up queryClient
 const queryClient = new QueryClient()
@@ -38,9 +40,11 @@ function ContextProvider({ children, cookies }: { children: ReactNode; cookies: 
   const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig as Config, cookies)
 
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </WagmiProvider>
+    <ThirdwebProvider>
+      <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState}>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </WagmiProvider>
+    </ThirdwebProvider>
   )
 }
 
