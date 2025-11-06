@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
-import { getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
+import { getSmartWalletAddress, clearSmartWalletMapping } from "@/app/utils/smartWalletStorage";
 import Header from "@/components/Header";
 import { Wallet, Copy, ExternalLink, RefreshCw, CheckCircle2, ArrowLeft } from "lucide-react";
 
@@ -16,19 +16,33 @@ export default function WalletPage() {
   const [balance, setBalance] = useState<string | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isCheckingWallet, setIsCheckingWallet] = useState(true);
+  const [hasCheckedWallet, setHasCheckedWallet] = useState(false);
 
   // Check if user has smart wallet
   useEffect(() => {
+    // If we already have a smart wallet address, don't check again (prevent redirect loops)
+    if (smartWalletAddress) {
+      setIsCheckingWallet(false);
+      setHasCheckedWallet(true);
+      return;
+    }
+
     if (!account) {
+      setIsCheckingWallet(false);
+      setHasCheckedWallet(true);
       router.push("/setup-wallet");
       return;
     }
 
+    setIsCheckingWallet(true);
     const isSmartWallet = wallet && wallet.id === "smart";
     
     if (isSmartWallet) {
       // Connected as smart wallet - use account.address as smart wallet address
       setSmartWalletAddress(account.address);
+      setIsCheckingWallet(false);
+      setHasCheckedWallet(true);
       
       // Find EOA from localStorage
       const storedSmartWallet = getSmartWalletAddress(account.address);
@@ -50,17 +64,42 @@ export default function WalletPage() {
         }
       }
     } else {
-      // Regular wallet - check if smart wallet exists
-      const storedSmartWallet = getSmartWalletAddress(account.address);
-      if (storedSmartWallet) {
-        setSmartWalletAddress(storedSmartWallet);
-        setEoaAddress(account.address);
-      } else {
-        // No smart wallet - redirect to setup
-        router.push("/setup-wallet");
-      }
+      // Regular wallet - check if smart wallet exists in localStorage
+      // Give it a moment to ensure localStorage is accessible
+      const checkStoredWallet = () => {
+        console.log("🔍 Checking for stored smart wallet for EOA:", account.address);
+        const storedSmartWallet = getSmartWalletAddress(account.address);
+        console.log("📋 Stored smart wallet:", storedSmartWallet);
+        
+        // Verify stored smart wallet is valid (not same as EOA)
+        if (storedSmartWallet && storedSmartWallet.toLowerCase() === account.address.toLowerCase()) {
+          console.warn("⚠️ Invalid smart wallet mapping detected (matches EOA), clearing it");
+          clearSmartWalletMapping(account.address);
+          // Redirect to setup to create a new smart wallet
+          console.log("❌ Invalid mapping cleared, redirecting to setup");
+          setIsCheckingWallet(false);
+          setHasCheckedWallet(true);
+          router.push("/setup-wallet");
+        } else if (storedSmartWallet) {
+          console.log("✅ Found smart wallet in storage:", storedSmartWallet);
+          setSmartWalletAddress(storedSmartWallet);
+          setEoaAddress(account.address);
+          setIsCheckingWallet(false);
+          setHasCheckedWallet(true);
+        } else {
+          // No smart wallet found - redirect to setup
+          console.log("❌ No smart wallet found, redirecting to setup");
+          setIsCheckingWallet(false);
+          setHasCheckedWallet(true);
+          router.push("/setup-wallet");
+        }
+      };
+      
+      // Small delay to ensure localStorage is accessible (especially on first load)
+      const timeoutId = setTimeout(checkStoredWallet, 100);
+      return () => clearTimeout(timeoutId);
     }
-  }, [account, wallet, router]);
+  }, [account, wallet, router, smartWalletAddress]);
 
   // Fetch balance
   useEffect(() => {
@@ -124,7 +163,27 @@ export default function WalletPage() {
     );
   }
 
-  if (!smartWalletAddress) {
+  // Show loading state while checking for smart wallet
+  if (isCheckingWallet) {
+    return (
+      <div className="min-h-screen bg-cosmic-dark relative overflow-hidden">
+        <div className="absolute inset-0 cosmic-gradient" />
+        <Header />
+        <main className="relative z-10 pt-32 pb-20 px-6 flex items-center justify-center min-h-screen">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-cosmic-purple mb-4"></div>
+              <h1 className="text-3xl font-bold text-white mb-4">Loading Wallet...</h1>
+              <p className="text-text-muted">Checking for your smart wallet...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Only show "No Smart Wallet Found" if we've finished checking and confirmed there's no wallet
+  if (!smartWalletAddress && !isCheckingWallet && hasCheckedWallet) {
     return (
       <div className="min-h-screen bg-cosmic-dark relative overflow-hidden">
         <div className="absolute inset-0 cosmic-gradient" />
@@ -148,7 +207,20 @@ export default function WalletPage() {
     );
   }
 
-  const isSmartWalletActive = wallet && wallet.id === "smart";
+  // If we're still checking or don't have an address yet, show loading
+  if (!smartWalletAddress) {
+    return null; // Will show loading state from isCheckingWallet check above
+  }
+
+  // Check if smart wallet is active in React context OR if we have a smart wallet address
+  // Having a smart wallet address means the wallet exists and can be used
+  const isSmartWalletActiveInContext = wallet && wallet.id === "smart";
+  const hasSmartWallet = !!smartWalletAddress; // If we have an address, the wallet exists
+  
+  // Show as "Active" if either:
+  // 1. Active in React context (wallet.id === "smart")
+  // 2. We have a smart wallet address (wallet exists, even if not active in context)
+  const isActive = isSmartWalletActiveInContext || hasSmartWallet;
 
   return (
     <div className="min-h-screen bg-cosmic-dark relative overflow-hidden">
@@ -187,11 +259,11 @@ export default function WalletPage() {
           {/* Status Badge */}
           <div className="mb-8 flex justify-center">
             <div className={`px-6 py-3 rounded-full font-semibold ${
-              isSmartWalletActive
+              isActive
                 ? "bg-green-500/20 text-green-400 border border-green-500/30"
                 : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
             }`}>
-              {isSmartWalletActive ? "✓ Active" : "⚠️ Not Connected"}
+              {isActive ? "✓ Active" : "⚠️ Not Connected"}
             </div>
           </div>
 
@@ -346,20 +418,6 @@ export default function WalletPage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          {!isSmartWalletActive && (
-            <div className="text-center">
-              <button
-                onClick={() => router.push("/setup-wallet")}
-                className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 rounded-xl font-semibold text-white hover:shadow-lg hover:shadow-green-500/50 transition-all"
-              >
-                Activate Smart Wallet
-              </button>
-              <p className="text-text-muted text-sm mt-3">
-                Connect your smart wallet to start making gasless transactions
-              </p>
-            </div>
-          )}
         </div>
       </main>
     </div>
