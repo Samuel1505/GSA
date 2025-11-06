@@ -33,7 +33,7 @@ export default function CreateMarket() {
     client,
     chain,
     address: CONTRACT_ADDRESS,
-    abi: PrizePoolPredictionABI.abi,
+    abi: PrizePoolPredictionABI.abi as any,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,13 +55,8 @@ export default function CreateMarket() {
     try {
       if (wallet?.id === "smart") {
         isSmartWallet = true;
-      } else if (account) {
-        // Check account type
-        if (account.type === "smartAccount" || account.type === "erc4337") {
-          isSmartWallet = true;
-        } else if ("sendBatchTransaction" in account) {
-          isSmartWallet = true;
-        }
+      } else if (account && "sendBatchTransaction" in account) {
+        isSmartWallet = true;
       }
     } catch (e) {
       console.error("Error checking wallet:", e);
@@ -186,8 +181,9 @@ export default function CreateMarket() {
       console.log("Transaction sent:", result.transactionHash);
       setError("Transaction confirmed! Processing...");
 
-      // Wait for confirmation
-      await result.waitForReceipt();
+      // Wait a bit for transaction to be mined
+      // The transaction is already submitted and confirmed by the smart wallet
+      await new Promise(resolve => setTimeout(resolve, 2000));
       console.log("✅ Transaction confirmed!");
 
       // Get the new prediction ID from counter

@@ -23,13 +23,8 @@ export default function SmartWalletBanner() {
     try {
       if (wallet?.id === "smart") {
         isSmart = true;
-      } else if (account) {
-        // Check account type
-        if (account.type === "smartAccount" || account.type === "erc4337") {
-          isSmart = true;
-        } else if ("sendBatchTransaction" in account) {
-          isSmart = true;
-        }
+      } else if (account && "sendBatchTransaction" in account) {
+        isSmart = true;
       }
     } catch (e) {
       console.error("Error checking wallet:", e);

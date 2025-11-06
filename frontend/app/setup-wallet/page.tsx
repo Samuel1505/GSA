@@ -109,17 +109,35 @@ export default function SetupWalletPage() {
       
       console.log("🔄 Activating smart wallet...");
       
-      // Use useConnect to connect the smart wallet through React context
-      // Pass the smartWalletConfig directly as the connector
-      const connectedWallet = await connect(smartWalletConfig, {
+      // Connect the smart wallet directly first
+      const connectedWalletInstance = await smartWalletConfig.connect({
+        client,
         personalAccount: account,
+      });
+      
+      // Add getAccount() method to the wallet if it doesn't exist
+      // This is needed because connect() internally calls getAccount()
+      const walletInstance = connectedWalletInstance as any;
+      if (!walletInstance.getAccount) {
+        walletInstance.getAccount = async () => {
+          // Return the account from the wallet's address
+          return {
+            ...account, // Include original account properties
+            address: walletInstance.address, // Override with smart wallet address
+          };
+        };
+      }
+      
+      // Now use connect() with the wallet that has getAccount()
+      const connectedWallet = await connect(async () => {
+        return walletInstance;
       });
       
       console.log("✅ Connected wallet:", connectedWallet);
       console.log("✅ Wallet ID:", connectedWallet?.id);
-      console.log("✅ Wallet address:", connectedWallet?.address);
+      console.log("✅ Wallet address:", (connectedWallet as any)?.address);
       
-      const connectedSmartWalletAddr = connectedWallet?.address || smartWalletAddr;
+      const connectedSmartWalletAddr = (connectedWallet as any)?.address || smartWalletAddr;
       
       console.log("🔍 Connected wallet ID check:", connectedWallet?.id);
       
@@ -178,19 +196,36 @@ export default function SetupWalletPage() {
 
       console.log("🔄 Creating smart wallet for EOA:", account.address);
 
-      // Use connect() with a function that returns the wallet connector
+      // Connect the smart wallet directly first, then use connect() to set it as active
+      // This avoids the getAccount() error by ensuring the wallet is properly connected
+      const connectedWalletInstance = await smartWalletConfig.connect({
+        client,
+        personalAccount: account,
+      });
+      
+      // Add getAccount() method to the wallet if it doesn't exist
+      // This is needed because connect() internally calls getAccount()
+      const walletInstance = connectedWalletInstance as any;
+      if (!walletInstance.getAccount) {
+        walletInstance.getAccount = async () => {
+          // Return the account from the wallet's address
+          return {
+            ...account, // Include original account properties
+            address: walletInstance.address, // Override with smart wallet address
+          };
+        };
+      }
+      
+      // Now use connect() with the wallet that has getAccount()
       const connectedWallet = await connect(async () => {
-        // Connect and return the smart wallet
-        return await smartWalletConfig.connect({
-          client,
-          personalAccount: account,
-        });
+        return walletInstance;
       });
       
       // Get the smart wallet address directly from wallet
       // Don't call getAccount() as it may not exist on smart wallets
-      const smartWalletAddress = connectedWallet.address || 
-                                   (connectedWallet as any).getAddress?.() ||
+      const smartWalletAddress = (connectedWallet as any)?.address || 
+                                   (connectedWallet as any)?.getAddress?.() ||
+                                   walletInstance.address ||
                                    account.address; // Fallback
 
       console.log("✅ Smart wallet created:", smartWalletAddress);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { ConnectButton, useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { client } from "@/app/config/thirdweb";
+import { toast } from "react-toastify";
 
 export default function Header() {
   const router = useRouter();
@@ -17,11 +18,6 @@ export default function Header() {
     try {
       // Check wallet ID
       if (wallet.id === "smart") return true;
-      
-      // Check account type
-      if (account.type === "smartAccount" || account.type === "erc4337") {
-        return true;
-      }
       
       // Check if account has smart wallet methods
       if ("sendBatchTransaction" in account) {
@@ -38,13 +34,43 @@ export default function Header() {
   const isSetupPage = pathname === "/setup-wallet";
 
   const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    // If on setup page, allow navigation
-    if (isSetupPage) return;
+    // If on setup page or homepage, allow navigation to homepage
+    if (isSetupPage || href === "/") return;
     
-    // If no smart wallet, prevent navigation and redirect to setup
+    // If no smart wallet, prevent navigation to protected pages and show toast
+    // Allow browsing homepage without smart wallet
     if (!isSmartWallet && account) {
       e.preventDefault();
-      router.push("/setup-wallet");
+      
+      // Show toast notification
+      toast.warning(
+        <div>
+          <div className="font-semibold mb-1">Smart Wallet Required</div>
+          <div className="text-sm opacity-90">
+            Please create your smart wallet to access this page and enjoy gasless transactions.
+          </div>
+        </div>,
+        {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          style: {
+            background: "rgba(10, 10, 10, 0.95)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "12px",
+            color: "#ffffff",
+            backdropFilter: "blur(10px)",
+          },
+        }
+      );
+      
+      // Also redirect to setup page after a short delay
+      setTimeout(() => {
+        router.push("/setup-wallet");
+      }, 500);
     }
   };
 
@@ -53,8 +79,7 @@ export default function Header() {
       <nav className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center">
           <Link 
-            href={isSmartWallet || !account ? "/" : "/setup-wallet"}
-            onClick={(e) => !isSmartWallet && account && handleNavigation(e, "/")}
+            href="/"
           >
             <div className="text-2xl font-bold text-white cursor-pointer">
               <span className="text-cosmic-blue">S</span>
@@ -74,44 +99,28 @@ export default function Header() {
           <Link 
             href="/create" 
             onClick={(e) => handleNavigation(e, "/create")}
-            className={`transition-colors ${
-              !isSmartWallet && account 
-                ? "text-text-muted cursor-not-allowed opacity-50" 
-                : "text-white hover:text-cosmic-blue"
-            }`}
+            className="text-white hover:text-cosmic-blue transition-colors"
           >
             Create
           </Link>
           <Link 
             href="/markets" 
             onClick={(e) => handleNavigation(e, "/markets")}
-            className={`transition-colors ${
-              !isSmartWallet && account 
-                ? "text-text-muted cursor-not-allowed opacity-50" 
-                : "text-white hover:text-cosmic-blue"
-            }`}
+            className="text-white hover:text-cosmic-blue transition-colors"
           >
             Markets
           </Link>
           <Link 
             href="/dashboard" 
             onClick={(e) => handleNavigation(e, "/dashboard")}
-            className={`transition-colors ${
-              !isSmartWallet && account 
-                ? "text-text-muted cursor-not-allowed opacity-50" 
-                : "text-white hover:text-cosmic-blue"
-            }`}
+            className="text-white hover:text-cosmic-blue transition-colors"
           >
             Dashboard
           </Link>
           <Link 
             href="/leaderboard" 
             onClick={(e) => handleNavigation(e, "/leaderboard")}
-            className={`transition-colors ${
-              !isSmartWallet && account 
-                ? "text-text-muted cursor-not-allowed opacity-50" 
-                : "text-white hover:text-cosmic-blue"
-            }`}
+            className="text-white hover:text-cosmic-blue transition-colors"
           >
             Leaderboard
           </Link>

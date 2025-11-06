@@ -26,13 +26,8 @@ export default function SmartWalletPrompt() {
     try {
       if (wallet?.id === "smart") {
         isSmart = true;
-      } else if (account) {
-        // Check account type
-        if (account.type === "smartAccount" || account.type === "erc4337") {
-          isSmart = true;
-        } else if ("sendBatchTransaction" in account) {
-          isSmart = true;
-        }
+      } else if (account && "sendBatchTransaction" in account) {
+        isSmart = true;
       }
     } catch (e) {
       console.error("Error checking wallet:", e);
@@ -84,10 +79,10 @@ export default function SmartWalletPrompt() {
     return (
       <section className="relative py-16 px-6">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-br from-green-500/20 to-blue-500/20 border border-green-500/30 rounded-2xl p-8 backdrop-blur-sm">
+          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
             <div className="flex items-center justify-between flex-wrap gap-6">
               <div className="flex items-center gap-4">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-400 to-green-600 rounded-full">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-cosmic-purple to-cosmic-blue">
                   <CheckCircle2 className="w-8 h-8 text-white" />
                 </div>
                 <div>
@@ -102,7 +97,7 @@ export default function SmartWalletPrompt() {
               
               <button
                 onClick={handleViewWallet}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cosmic-purple to-cosmic-blue rounded-xl font-semibold text-white hover:shadow-lg hover:shadow-cosmic-blue/50 transition-all hover:scale-105"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl font-medium text-white transition-all hover:border-white/30"
               >
                 <Wallet className="w-5 h-5" />
                 View Wallet Details

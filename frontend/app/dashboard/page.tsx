@@ -56,7 +56,7 @@ export default function DashboardPage() {
     client,
     chain,
     address: CONTRACT_ADDRESS,
-    abi: PrizePoolPredictionABI.abi,
+    abi: PrizePoolPredictionABI.abi as any,
   });
 
   useEffect(() => {
@@ -76,11 +76,12 @@ export default function DashboardPage() {
       setError("");
 
       // Fetch user stats from contract using readContract
+      // @ts-expect-error - ABI type is complex, using any for flexibility
       const stats = await readContract({
         contract,
         method: "function getUserStats(address user) returns (tuple(uint256 totalPredictions, uint256 correctPredictions, uint256 currentStreak, uint256 longestStreak, uint256 totalWinnings, uint256 accuracyPercentage, bool hasStreakSaver, uint256 totalPoints))",
         params: [account.address],
-      });
+      }) as any;
       
       // Get balance from chain using RPC
       const balanceResult = await fetch("https://sepolia.base.org", {
@@ -117,7 +118,7 @@ export default function DashboardPage() {
         contract,
         method: "function getUserParticipatedPredictions(address user) returns (uint256[])",
         params: [account.address],
-      });
+      }) as bigint[];
       console.log("Participated predictions:", participatedPredictionIds);
 
       // Fetch details for each participated prediction
@@ -150,29 +151,32 @@ export default function DashboardPage() {
   ): Promise<ActiveBet | null> => {
     try {
       // Fetch prediction details
+      // @ts-expect-error - ABI type is complex, using any for flexibility
       const prediction = await readContract({
         contract,
         method: "function getPrediction(uint256 predictionId) returns (tuple(uint256 id, string question, string[] options, uint256 entryFee, uint256 prizePool, uint256 endTime, uint256 resolutionTime, bool resolved, uint256 winningOption, bool active, address creator, uint256 totalParticipants))",
         params: [BigInt(predictionId)],
-      });
+      }) as any;
       
       // Fetch user's prediction
+      // @ts-expect-error - ABI type is complex, using any for flexibility
       const userPrediction = await readContract({
         contract,
         method: "function getUserPrediction(uint256 predictionId, address user) returns (tuple(uint256 option, bool claimed, uint256 timestamp))",
         params: [BigInt(predictionId), userAddress],
-      });
+      }) as any;
       
       if (userPrediction.timestamp === BigInt(0)) {
         return null; // User hasn't predicted on this market
       }
 
       // Fetch user's prize status
+      // @ts-expect-error - ABI type is complex, using any for flexibility
       const prizeStatus = await readContract({
         contract,
         method: "function getUserPrizeStatus(uint256 predictionId, address user) returns (tuple(bool hasWon, uint256 prizeAmount))",
         params: [BigInt(predictionId), userAddress],
-      });
+      }) as any;
 
       const endTime = new Date(Number(prediction.endTime) * 1000);
       const now = new Date();
@@ -566,7 +570,7 @@ export default function DashboardPage() {
 
               {/* Refresh Button */}
               <button
-                onClick={connectAndFetchData}
+                onClick={fetchData}
                 disabled={loading}
                 className="w-full mt-6 py-3 bg-cosmic-purple/20 hover:bg-cosmic-purple/30 border border-cosmic-purple/50 rounded-lg text-cosmic-purple font-semibold transition-all disabled:opacity-50"
               >

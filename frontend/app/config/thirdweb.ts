@@ -43,8 +43,8 @@ export const smartWalletConfig = smartWallet({
  * Connect smart wallet from active account
  */
 export async function connectSmartWallet(activeAccount: any) {
-  console.log('🔧 Connecting Thirdweb smart wallet...');
-  console.log('👤 Active account:', activeAccount?.address);
+  console.log(' Connecting Thirdweb smart wallet...');
+  console.log(' Active account:', activeAccount?.address);
 
   if (!activeAccount) {
     throw new Error('No active account provided');
@@ -66,12 +66,12 @@ export async function connectSmartWallet(activeAccount: any) {
     });
 
     // Get address from the wallet object
-    const address = wallet.address || wallet.getAddress?.();
-    console.log('✅ Smart wallet connected:', address);
+    const address = wallet.address;
+    console.log(' Smart wallet connected:', address);
 
     return wallet;
   } catch (error) {
-    console.error('❌ Failed to connect smart wallet:', error);
+    console.error(' Failed to connect smart wallet:', error);
     throw error;
   }
 }
