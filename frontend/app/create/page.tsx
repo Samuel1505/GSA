@@ -6,15 +6,16 @@ import Header from "@/components/Header";
 import FormField from "@/components/create/FormField";
 import ThumbnailUpload from "@/components/create/ThumbnailUpload";
 import CreateButton from "@/components/create/CreateButton";
-import { useActiveAccount } from "thirdweb/react";
+import { useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
 import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
 import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
-import { parseEther, toUnits } from "thirdweb/utils";
+import { parseEther } from "viem";
 
 export default function CreateMarket() {
   const router = useRouter();
   const account = useActiveAccount();
+  const wallet = useActiveWallet();
   const [formData, setFormData] = useState({
     marketQuestion: "",
     entryFee: "",
@@ -46,6 +47,31 @@ export default function CreateMarket() {
 
     if (!account) {
       setError("Please connect your wallet first.");
+      return;
+    }
+
+    // Check if user has smart wallet - REQUIRED for transactions
+    let isSmartWallet = false;
+    try {
+      if (wallet?.id === "smart") {
+        isSmartWallet = true;
+      } else if (account) {
+        // Check account type
+        if (account.type === "smartAccount" || account.type === "erc4337") {
+          isSmartWallet = true;
+        } else if ("sendBatchTransaction" in account) {
+          isSmartWallet = true;
+        }
+      }
+    } catch (e) {
+      console.error("Error checking wallet:", e);
+    }
+
+    if (!isSmartWallet) {
+      setError("Smart wallet required! Please create your smart wallet first to make transactions. Redirecting...");
+      setTimeout(() => {
+        router.push("/setup-wallet");
+      }, 2000);
       return;
     }
 

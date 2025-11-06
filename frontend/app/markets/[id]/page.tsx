@@ -7,11 +7,12 @@ import Image from "next/image";
 import { ThumbsUp, ThumbsDown, ArrowLeft, Users, TrendingUp, Clock } from "lucide-react";
 import Link from "next/link";
 import { formatTimeRemaining, formatPercentage, formatVolume } from "../utils";
-import { useActiveAccount } from "thirdweb/react";
+import { useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
 import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
 import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
-import { formatEther, parseEther } from "thirdweb/utils";
+import { formatEther, parseEther } from "viem";
+import { useRouter } from "next/navigation";
 
 interface MarketDetail {
   id: string;
@@ -36,8 +37,10 @@ interface MarketDetail {
 
 export default function MarketDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const marketId = params.id as string;
   const account = useActiveAccount();
+  const wallet = useActiveWallet();
   const userAddress = account?.address || "";
   
   const [market, setMarket] = useState<MarketDetail | null>(null);
@@ -118,6 +121,31 @@ export default function MarketDetailPage() {
     if (!market || !tradeAmount || parseFloat(tradeAmount) <= 0) return;
     if (!account) {
       setError("Please connect your wallet first.");
+      return;
+    }
+
+    // Check if user has smart wallet - REQUIRED for transactions
+    let isSmartWallet = false;
+    try {
+      if (wallet?.id === "smart") {
+        isSmartWallet = true;
+      } else if (account) {
+        // Check account type
+        if (account.type === "smartAccount" || account.type === "erc4337") {
+          isSmartWallet = true;
+        } else if ("sendBatchTransaction" in account) {
+          isSmartWallet = true;
+        }
+      }
+    } catch (e) {
+      console.error("Error checking wallet:", e);
+    }
+
+    if (!isSmartWallet) {
+      setError("Smart wallet required! Please create your smart wallet first to make transactions. Redirecting...");
+      setTimeout(() => {
+        router.push("/setup-wallet");
+      }, 2000);
       return;
     }
 

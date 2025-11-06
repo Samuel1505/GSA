@@ -12,7 +12,7 @@ import { useActiveAccount } from "thirdweb/react";
 import { getContract, readContract } from "thirdweb";
 import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
 import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
-import { formatEther, parseUnits } from "thirdweb/utils";
+import { formatEther } from "viem";
 
 interface UserStats {
   totalPredictions: number;
