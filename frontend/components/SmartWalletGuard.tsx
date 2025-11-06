@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
+import { getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
 
 interface SmartWalletGuardProps {
   children: React.ReactNode;
@@ -21,21 +22,26 @@ export default function SmartWalletGuard({ children }: SmartWalletGuardProps) {
   const isSetupPage = pathname === "/setup-wallet";
   const isHomePage = pathname === "/";
 
-  // Helper function to check if wallet is smart wallet
-  const checkIsSmartWallet = (): boolean => {
-    if (!wallet || !account) {
+  // Helper function to check if user has a smart wallet (active or stored)
+  const checkHasSmartWallet = (): boolean => {
+    if (!account) {
       return false;
     }
 
     try {
-      // Check wallet ID - this is the most reliable indicator
-      // Smart wallets in Thirdweb have id === "smart"
-      if (wallet.id === "smart") {
+      // Check if wallet is active smart wallet in React context
+      if (wallet && wallet.id === "smart") {
         return true;
       }
       
       // Check if account has smart wallet methods
-      if ("sendBatchTransaction" in account) {
+      if (wallet && account && "sendBatchTransaction" in account) {
+        return true;
+      }
+      
+      // Check if user has a stored smart wallet address in localStorage
+      const storedSmartWallet = getSmartWalletAddress(account.address);
+      if (storedSmartWallet) {
         return true;
       }
       
@@ -66,9 +72,9 @@ export default function SmartWalletGuard({ children }: SmartWalletGuardProps) {
       // Small delay to ensure wallet is fully loaded
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      const isSmartWallet = checkIsSmartWallet();
+      const hasSmartWallet = checkHasSmartWallet();
 
-      if (!isSmartWallet) {
+      if (!hasSmartWallet) {
         // User has regular wallet but no smart wallet
         // Block protected pages (Create, Markets, Dashboard, etc.) and redirect to setup
         // But allow homepage and setup page

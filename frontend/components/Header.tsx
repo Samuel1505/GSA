@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { ConnectButton, useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { client } from "@/app/config/thirdweb";
+import { getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
 import { toast } from "react-toastify";
 
 export default function Header() {
@@ -12,15 +13,22 @@ export default function Header() {
   const account = useActiveAccount();
   const wallet = useActiveWallet();
 
-  // Check if user has smart wallet
+  // Check if user has smart wallet (active or stored)
   const hasSmartWallet = () => {
-    if (!wallet || !account) return false;
+    if (!account) return false;
+    
     try {
-      // Check wallet ID
-      if (wallet.id === "smart") return true;
+      // Check if wallet is active smart wallet in React context
+      if (wallet && wallet.id === "smart") return true;
       
       // Check if account has smart wallet methods
-      if ("sendBatchTransaction" in account) {
+      if (wallet && account && "sendBatchTransaction" in account) {
+        return true;
+      }
+      
+      // Check if user has a stored smart wallet address in localStorage
+      const storedSmartWallet = getSmartWalletAddress(account.address);
+      if (storedSmartWallet) {
         return true;
       }
       
