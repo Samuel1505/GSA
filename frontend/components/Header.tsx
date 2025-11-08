@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { ConnectButton, useActiveAccount, useActiveWallet } from "thirdweb/react";
-import { client } from "@/app/config/thirdweb";
+import { client, chain } from "@/app/config/thirdweb"; // Add 'chain' import here
 import { getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
 import { toast } from "react-toastify";
 
@@ -142,6 +142,10 @@ export default function Header() {
         
         <ConnectButton
           client={client}
+          accountAbstraction={{
+            chain, // Enables smart account conversion for the target chain (e.g., baseSepolia)
+            sponsorGas: true, // Auto-sponsors gas via Thirdweb paymaster (fund via dashboard if needed)
+          }}
           // No wallets array - Thirdweb will auto-detect browser wallets (MetaMask, Coinbase, etc.)
           // Users connect with regular wallet first, then use setup page to create smart wallet
           connectButton={{
