@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { ConnectButton, useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { client } from "@/app/config/thirdweb";
-import { getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
+import { findSmartWalletMapping } from "@/app/utils/smartWalletStorage";
 import { toast } from "react-toastify";
 
 export default function Header() {
@@ -27,8 +27,8 @@ export default function Header() {
       }
       
       // Check if user has a stored smart wallet address in localStorage
-      const storedSmartWallet = getSmartWalletAddress(account.address);
-      if (storedSmartWallet) {
+      const storedMapping = findSmartWalletMapping(account.address);
+      if (storedMapping) {
         return true;
       }
       

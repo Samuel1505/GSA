@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
-import { getSmartWalletAddress, clearSmartWalletMapping } from "@/app/utils/smartWalletStorage";
+import { clearSmartWalletMapping, findSmartWalletMapping } from "@/app/utils/smartWalletStorage";
 import Header from "@/components/Header";
 import { Wallet, Copy, ExternalLink, RefreshCw, CheckCircle2, ArrowLeft } from "lucide-react";
 
@@ -44,37 +44,28 @@ export default function WalletPage() {
       setIsCheckingWallet(false);
       setHasCheckedWallet(true);
       
-      // Find EOA from localStorage
-      const storedSmartWallet = getSmartWalletAddress(account.address);
-      if (!storedSmartWallet) {
-        // If not found, search reverse mapping
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith("smart_wallet_mapping_")) {
-            try {
-              const mapping = JSON.parse(localStorage.getItem(key) || "{}");
-              if (mapping.smartWalletAddress?.toLowerCase() === account.address.toLowerCase()) {
-                setEoaAddress(mapping.eoaAddress);
-                break;
-              }
-            } catch (e) {
-              // Ignore parse errors
-            }
-          }
-        }
+      const storedMapping = findSmartWalletMapping(account.address);
+      if (storedMapping?.eoaAddress) {
+        setEoaAddress(storedMapping.eoaAddress);
       }
     } else {
       // Regular wallet - check if smart wallet exists in localStorage
       // Give it a moment to ensure localStorage is accessible
       const checkStoredWallet = () => {
         console.log("🔍 Checking for stored smart wallet for EOA:", account.address);
-        const storedSmartWallet = getSmartWalletAddress(account.address);
+        const storedMapping = findSmartWalletMapping(account.address);
+        const storedSmartWallet = storedMapping?.smartWalletAddress;
         console.log("📋 Stored smart wallet:", storedSmartWallet);
         
         // Verify stored smart wallet is valid (not same as EOA)
-        if (storedSmartWallet && storedSmartWallet.toLowerCase() === account.address.toLowerCase()) {
+        if (
+          storedMapping &&
+          storedSmartWallet &&
+          storedMapping.eoaAddress &&
+          storedSmartWallet.toLowerCase() === storedMapping.eoaAddress.toLowerCase()
+        ) {
           console.warn("⚠️ Invalid smart wallet mapping detected (matches EOA), clearing it");
-          clearSmartWalletMapping(account.address);
+          clearSmartWalletMapping(storedMapping.eoaAddress);
           // Redirect to setup to create a new smart wallet
           console.log("❌ Invalid mapping cleared, redirecting to setup");
           setIsCheckingWallet(false);
@@ -83,7 +74,7 @@ export default function WalletPage() {
         } else if (storedSmartWallet) {
           console.log("✅ Found smart wallet in storage:", storedSmartWallet);
           setSmartWalletAddress(storedSmartWallet);
-          setEoaAddress(account.address);
+          setEoaAddress(storedMapping?.eoaAddress || account.address);
           setIsCheckingWallet(false);
           setHasCheckedWallet(true);
         } else {

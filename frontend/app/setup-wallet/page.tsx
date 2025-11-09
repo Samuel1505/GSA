@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useActiveAccount, useActiveWallet, useConnect } from "thirdweb/react";
 import { connectSmartWallet, smartWalletConfig, client, chain } from "@/app/config/thirdweb";
-import { saveSmartWalletMapping, getSmartWalletAddress, clearSmartWalletMapping } from "@/app/utils/smartWalletStorage";
+import { saveSmartWalletMapping, getSmartWalletAddress, clearSmartWalletMapping, findSmartWalletMapping } from "@/app/utils/smartWalletStorage";
 import Header from "@/components/Header";
 import { Wallet, Sparkles, CheckCircle2, ArrowRight, Loader2, ExternalLink } from "lucide-react";
 
@@ -109,25 +109,27 @@ export default function SetupWalletPage() {
     const isSmartWallet = wallet && wallet.id === "smart";
     
     // Check if user has a stored smart wallet
-    const storedSmartWallet = getSmartWalletAddress(account.address);
+    const storedMapping = findSmartWalletMapping(account.address);
+    const storedSmartWallet = storedMapping?.smartWalletAddress;
     
-    // Verify stored smart wallet is valid (not same as EOA)
-    if (storedSmartWallet && storedSmartWallet.toLowerCase() === account.address.toLowerCase()) {
+    if (storedSmartWallet && storedMapping?.eoaAddress && storedSmartWallet === storedMapping.eoaAddress) {
       console.warn("⚠️ Invalid smart wallet mapping detected (matches EOA), clearing it");
-      clearSmartWalletMapping(account.address);
+      clearSmartWalletMapping(storedMapping.eoaAddress);
       // Don't redirect - let user create a new smart wallet
     } else if (storedSmartWallet) {
-      // Valid stored smart wallet exists
       if ((isSmartWallet || storedSmartWallet) && !isCreating && !isConnectingToExisting) {
         console.log("✅ User already has smart wallet, redirecting to wallet page");
         router.push("/wallet");
         return;
       }
       
-      // If we have a stored smart wallet but not connected, set it for display
       if (!isSmartWallet && !existingSmartWalletAddr) {
-        console.log("📋 Found stored smart wallet for EOA:", storedSmartWallet);
+        console.log("📋 Found stored smart wallet mapping:", storedMapping);
         setExistingSmartWalletAddr(storedSmartWallet);
+      }
+      
+      if (!eoaAddress && storedMapping?.eoaAddress) {
+        setEoaAddress(storedMapping.eoaAddress);
       }
     }
   }, [account, wallet, router, eoaAddress, isCreating, isConnectingToExisting, existingSmartWalletAddr]);
@@ -156,22 +158,24 @@ export default function SetupWalletPage() {
       
       // First, connect the smart wallet directly to get the actual smart wallet address
       setCreationStep("Connecting to smart wallet...");
-      const connectedWalletInstance = await smartWalletConfig.connect({
+      const smartAccount = await smartWalletConfig.connect({
         client,
         personalAccount: account,
       });
       
-      // Get the smart wallet address from the connected wallet instance
-      // The wallet instance should have the smart wallet address
-      const smartWalletAddress = (connectedWalletInstance as any).address || smartWalletAddr;
+      // The smart account address is available on the returned account
+      const smartWalletAddress = smartAccount?.address || smartWalletAddr;
+      if (!smartWalletAddress) {
+        throw new Error("Unable to determine smart wallet address. Please try again.");
+      }
       
       console.log("✅ Smart wallet connected! Address:", smartWalletAddress);
       console.log("📋 EOA address:", account.address);
-      console.log("📋 Wallet object:", connectedWalletInstance);
+      console.log("📋 Smart account object:", smartAccount);
       
       // Verify we got a different address (smart wallet should be different from EOA)
       if (smartWalletAddress.toLowerCase() === account.address.toLowerCase()) {
-        console.warn("⚠️ Warning: Smart wallet address matches EOA address. This might indicate an issue.");
+        console.warn(" Warning: Smart wallet address matches EOA address. This might indicate an issue.");
         setError("Smart wallet address matches EOA address. Please try again or contact support.");
         setIsConnectingToExisting(false);
         return;
@@ -184,9 +188,7 @@ export default function SetupWalletPage() {
       // Now try to set it as active in React context using connect()
       setCreationStep("Activating smart wallet in app...");
       try {
-        await connect(async () => {
-          return smartWalletConfig;
-        });
+        await connect(async () => smartWalletConfig);
         console.log("✅ Smart wallet set as active in React context");
       } catch (connectError: any) {
         console.warn("⚠️ Could not set as active in React context (wallet still works):", connectError.message);
@@ -240,18 +242,20 @@ export default function SetupWalletPage() {
       
       // First, connect the smart wallet directly to get the actual smart wallet address
       setCreationStep("Connecting to smart wallet...");
-      const connectedWalletInstance = await smartWalletConfig.connect({
+      const smartAccount = await smartWalletConfig.connect({
         client,
         personalAccount: account,
       });
       
-      // Get the smart wallet address from the connected wallet instance
-      // The wallet instance should have the smart wallet address
-      const smartWalletAddress = (connectedWalletInstance as any).address || account.address;
+      // The smart account returned from connect contains the smart wallet address
+      const smartWalletAddress = smartAccount?.address || null;
+      if (!smartWalletAddress) {
+        throw new Error("Unable to determine smart wallet address. Please try again.");
+      }
       
       console.log("✅ Smart wallet connected! Address:", smartWalletAddress);
       console.log("📋 EOA address:", account.address);
-      console.log("📋 Wallet object:", connectedWalletInstance);
+      console.log("📋 Smart account object:", smartAccount);
       
       // Verify we got a different address (smart wallet should be different from EOA)
       if (smartWalletAddress.toLowerCase() === account.address.toLowerCase()) {
@@ -273,9 +277,7 @@ export default function SetupWalletPage() {
       // Now try to set it as active in React context using connect()
       setCreationStep("Activating smart wallet in app...");
       try {
-        await connect(async () => {
-          return smartWalletConfig;
-        });
+        await connect(async () => smartWalletConfig);
         console.log("✅ Smart wallet set as active in React context");
       } catch (connectError: any) {
         console.warn("⚠️ Could not set as active in React context (wallet still works):", connectError.message);
