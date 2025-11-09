@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { ConnectButton, useActiveAccount, useActiveWallet } from "thirdweb/react";
-import { client, chain } from "@/app/config/thirdweb"; // Add 'chain' import here
-import { getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
+import { client, chain } from "@/app/config/thirdweb";
+import { findSmartWalletMapping, getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
 import { toast } from "react-toastify";
 
 export default function Header() {
@@ -27,8 +27,12 @@ export default function Header() {
       }
       
       // Check if user has a stored smart wallet address in localStorage
-      const storedSmartWallet = getSmartWalletAddress(account.address);
-      if (storedSmartWallet) {
+      const storedMapping = findSmartWalletMapping(account.address);
+      if (storedMapping) {
+        return true;
+      }
+      const legacyStored = getSmartWalletAddress(account.address);
+      if (legacyStored) {
         return true;
       }
       
@@ -143,7 +147,7 @@ export default function Header() {
         <ConnectButton
           client={client}
           accountAbstraction={{
-            chain, // Enables smart account conversion for the target chain (e.g., baseSepolia)
+            chain, // Enables smart account conversion for the target chain (e.g., Base Sepolia)
             sponsorGas: true, // Auto-sponsors gas via Thirdweb paymaster (fund via dashboard if needed)
           }}
           // No wallets array - Thirdweb will auto-detect browser wallets (MetaMask, Coinbase, etc.)

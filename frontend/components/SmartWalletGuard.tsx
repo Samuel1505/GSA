@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
-import { getSmartWalletAddress } from "@/app/utils/smartWalletStorage";
+import { findSmartWalletMapping } from "@/app/utils/smartWalletStorage";
 
 interface SmartWalletGuardProps {
   children: React.ReactNode;
@@ -39,9 +39,9 @@ export default function SmartWalletGuard({ children }: SmartWalletGuardProps) {
         return true;
       }
       
-      // Check if user has a stored smart wallet address in localStorage
-      const storedSmartWallet = getSmartWalletAddress(account.address);
-      if (storedSmartWallet) {
+      // Check if user has a stored smart wallet address or mapping in localStorage
+      const storedMapping = findSmartWalletMapping(account.address);
+      if (storedMapping) {
         return true;
       }
       

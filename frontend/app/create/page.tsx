@@ -6,16 +6,18 @@ import Header from "@/components/Header";
 import FormField from "@/components/create/FormField";
 import ThumbnailUpload from "@/components/create/ThumbnailUpload";
 import CreateButton from "@/components/create/CreateButton";
-import { useActiveAccount, useActiveWallet } from "thirdweb/react";
+import { useActiveAccount, useActiveWallet, useConnect } from "thirdweb/react";
 import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
 import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
 import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
 import { parseEther } from "viem";
+import { ensureSmartWalletAccount } from "@/app/utils/smartWalletUtils";
 
 export default function CreateMarket() {
   const router = useRouter();
   const account = useActiveAccount();
   const wallet = useActiveWallet();
+  const { connect } = useConnect();
   const [formData, setFormData] = useState({
     marketQuestion: "",
     entryFee: "",
@@ -27,6 +29,7 @@ export default function CreateMarket() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
 
   // Get contract instance
   const contract = getContract({
@@ -39,6 +42,9 @@ export default function CreateMarket() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    setError("");
+    setStatusMessage("");
+
     // Validation
     if (!formData.marketQuestion || !formData.entryFee || !formData.initialPrizePool || !formData.endTime) {
       setError("Please fill in all required fields.");
@@ -51,27 +57,36 @@ export default function CreateMarket() {
     }
 
     // Check if user has smart wallet - REQUIRED for transactions
-    let isSmartWallet = false;
-    try {
-      if (wallet?.id === "smart") {
-        isSmartWallet = true;
-      } else if (account && "sendBatchTransaction" in account) {
-        isSmartWallet = true;
-      }
-    } catch (e) {
-      console.error("Error checking wallet:", e);
+    const {
+      smartAccount: smartAccountForTx,
+      isSmartWallet,
+      error: smartWalletError,
+    } = await ensureSmartWalletAccount({
+      account,
+      wallet,
+      connect,
+      onStatus: (message) => {
+        setStatusMessage(message);
+      },
+    });
+
+    if (smartWalletError) {
+      console.error("Error ensuring smart wallet:", smartWalletError);
     }
 
-    if (!isSmartWallet) {
-      setError("Smart wallet required! Please create your smart wallet first to make transactions. Redirecting...");
+    if (!smartAccountForTx || typeof (smartAccountForTx as any)?.sendBatchTransaction !== "function") {
+      setError(
+        "We couldn't activate your smart wallet automatically. Please open the Wallet page to reconnect it."
+      );
       setTimeout(() => {
-        router.push("/setup-wallet");
-      }, 2000);
+        router.push("/wallet");
+      }, 2500);
       return;
     }
 
     setLoading(true);
     setError("");
+    setStatusMessage("");
 
     try {
       // Prepare and validate parameters
@@ -171,15 +186,15 @@ export default function CreateMarket() {
 
       // Send transaction (gasless with smart wallet!)
       console.log("Sending gasless transaction...");
-      setError("Transaction submitted! Waiting for confirmation... (Gasless!)");
+      setStatusMessage("Transaction submitted! Waiting for confirmation... (Gasless!)");
       
       const result = await sendTransaction({
         transaction,
-        account, // Smart wallet account - gas is sponsored!
+        account: smartAccountForTx, // Smart wallet account - gas is sponsored!
       });
 
       console.log("Transaction sent:", result.transactionHash);
-      setError("Transaction confirmed! Processing...");
+      setStatusMessage("Transaction confirmed! Finalizing...");
 
       // Wait a bit for transaction to be mined
       // The transaction is already submitted and confirmed by the smart wallet
@@ -200,6 +215,9 @@ export default function CreateMarket() {
         console.error("Failed to get prediction counter:", e);
       }
 
+      // Provide final status before navigation
+      setStatusMessage("Transaction confirmed! Redirecting to your new market...");
+
       // Navigate to markets page
       router.push(`/markets${newPredictionId ? `?newId=${newPredictionId}` : ""}`);
     } catch (err: any) {
@@ -213,6 +231,7 @@ export default function CreateMarket() {
       else {
         setError(err.message || "An error occurred while creating the prediction.");
       }
+      setStatusMessage("");
     } finally {
       setLoading(false);
     }
@@ -265,12 +284,14 @@ export default function CreateMarket() {
 
           {/* Form Section */}
           <form onSubmit={handleSubmit} className="space-y-8">
+            {statusMessage && (
+              <div className="bg-blue-500/20 border border-blue-500 text-blue-200 p-4 rounded-lg">
+                {statusMessage}
+              </div>
+            )}
+
             {error && (
-              <div className={`${
-                error.includes("submitted") || error.includes("confirmed") 
-                  ? "bg-blue-500/20 border-blue-500 text-blue-300" 
-                  : "bg-red-500/20 border-red-500 text-red-300"
-              } border p-4 rounded-lg`}>
+              <div className="bg-red-500/20 border border-red-500 text-red-300 p-4 rounded-lg">
                 {error}
               </div>
             )}

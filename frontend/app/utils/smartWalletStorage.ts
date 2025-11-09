@@ -18,13 +18,17 @@ export function saveSmartWalletMapping(
   eoaAddress: string,
   smartWalletAddress: string
 ): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   const key = `${STORAGE_KEY_PREFIX}${eoaAddress.toLowerCase()}`;
   const mapping: SmartWalletMapping = {
     eoaAddress: eoaAddress.toLowerCase(),
     smartWalletAddress: smartWalletAddress.toLowerCase(),
     createdAt: new Date().toISOString(),
   };
-  localStorage.setItem(key, JSON.stringify(mapping));
+  window.localStorage.setItem(key, JSON.stringify(mapping));
   console.log("💾 Saved smart wallet mapping:", mapping);
 }
 
@@ -34,8 +38,12 @@ export function saveSmartWalletMapping(
 export function getSmartWalletAddress(
   eoaAddress: string
 ): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   const key = `${STORAGE_KEY_PREFIX}${eoaAddress.toLowerCase()}`;
-  const data = localStorage.getItem(key);
+  const data = window.localStorage.getItem(key);
   if (!data) return null;
 
   try {
@@ -53,8 +61,12 @@ export function getSmartWalletAddress(
 export function getSmartWalletMapping(
   eoaAddress: string
 ): SmartWalletMapping | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   const key = `${STORAGE_KEY_PREFIX}${eoaAddress.toLowerCase()}`;
-  const data = localStorage.getItem(key);
+  const data = window.localStorage.getItem(key);
   if (!data) return null;
 
   try {
@@ -69,15 +81,62 @@ export function getSmartWalletMapping(
  * Check if an EOA has a smart wallet
  */
 export function hasSmartWallet(eoaAddress: string): boolean {
-  return getSmartWalletAddress(eoaAddress) !== null;
+  return findSmartWalletMapping(eoaAddress) !== null;
 }
 
 /**
  * Clear the mapping (useful for testing or reset)
  */
 export function clearSmartWalletMapping(eoaAddress: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   const key = `${STORAGE_KEY_PREFIX}${eoaAddress.toLowerCase()}`;
-  localStorage.removeItem(key);
+  window.localStorage.removeItem(key);
   console.log("🗑️ Cleared smart wallet mapping for:", eoaAddress);
+}
+
+/**
+ * Find a smart wallet mapping by either EOA or smart wallet address
+ */
+export function findSmartWalletMapping(
+  address: string
+): SmartWalletMapping | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const lowerAddress = address.toLowerCase();
+
+  // Try direct lookup treating the address as the EOA
+  const directMapping = getSmartWalletMapping(lowerAddress);
+  if (directMapping) {
+    return directMapping;
+  }
+
+  // Fallback: search through stored mappings to find a matching smart wallet address
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) {
+      continue;
+    }
+
+    try {
+      const value = window.localStorage.getItem(key);
+      if (!value) {
+        continue;
+      }
+
+      const mapping = JSON.parse(value) as SmartWalletMapping;
+      if (mapping.smartWalletAddress.toLowerCase() === lowerAddress) {
+        return mapping;
+      }
+    } catch (error) {
+      console.error("Error parsing smart wallet mapping entry:", error);
+    }
+  }
+
+  return null;
 }
 

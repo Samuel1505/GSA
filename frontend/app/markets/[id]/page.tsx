@@ -7,12 +7,13 @@ import Image from "next/image";
 import { ThumbsUp, ThumbsDown, ArrowLeft, Users, TrendingUp, Clock } from "lucide-react";
 import Link from "next/link";
 import { formatTimeRemaining, formatPercentage, formatVolume } from "../utils";
-import { useActiveAccount, useActiveWallet } from "thirdweb/react";
+import { useActiveAccount, useActiveWallet, useConnect } from "thirdweb/react";
 import { getContract, prepareContractCall, sendTransaction, readContract } from "thirdweb";
 import { client, CONTRACT_ADDRESS, chain } from "@/app/config/thirdweb";
 import PrizePoolPredictionABI from "@/app/ABIs/Prediction.json";
 import { formatEther, parseEther } from "viem";
 import { useRouter } from "next/navigation";
+import { ensureSmartWalletAccount } from "@/app/utils/smartWalletUtils";
 
 interface MarketDetail {
   id: string;
@@ -41,6 +42,7 @@ export default function MarketDetailPage() {
   const marketId = params.id as string;
   const account = useActiveAccount();
   const wallet = useActiveWallet();
+  const { connect } = useConnect();
   const userAddress = account?.address || "";
   
   const [market, setMarket] = useState<MarketDetail | null>(null);
@@ -127,22 +129,34 @@ export default function MarketDetailPage() {
     }
 
     // Check if user has smart wallet - REQUIRED for transactions
-    let isSmartWallet = false;
-    try {
-      if (wallet?.id === "smart") {
-        isSmartWallet = true;
-      } else if (account && "sendBatchTransaction" in account) {
-        isSmartWallet = true;
-      }
-    } catch (e) {
-      console.error("Error checking wallet:", e);
+    const {
+      smartAccount: smartAccountForTx,
+      isSmartWallet,
+      error: smartWalletError,
+    } = await ensureSmartWalletAccount({
+      account,
+      wallet,
+      connect,
+      onStatus: (message) => {
+        if (message) {
+          setError(message);
+        } else {
+          setError("");
+        }
+      },
+    });
+
+    if (smartWalletError) {
+      console.error("Error ensuring smart wallet:", smartWalletError);
     }
 
-    if (!isSmartWallet) {
-      setError("Smart wallet required! Please create your smart wallet first to make transactions. Redirecting...");
+    if (!smartAccountForTx || typeof (smartAccountForTx as any)?.sendBatchTransaction !== "function") {
+      setError(
+        "We couldn't activate your smart wallet automatically. Please open the Wallet page to reconnect it."
+      );
       setTimeout(() => {
-        router.push("/setup-wallet");
-      }, 2000);
+        router.push("/wallet");
+      }, 2500);
       return;
     }
 
@@ -188,7 +202,7 @@ export default function MarketDetailPage() {
       
       const result = await sendTransaction({
         transaction,
-        account, // Smart wallet account - gas is sponsored!
+        account: smartAccountForTx, // Smart wallet account - gas is sponsored!
       });
 
       // Wait a bit for transaction to be mined
