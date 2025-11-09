@@ -147,8 +147,8 @@ export default function Header() {
         <ConnectButton
           client={client}
           accountAbstraction={{
-            chain,
-            sponsorGas: true,
+            chain, // Enables smart account conversion for the target chain (e.g., Base Sepolia)
+            sponsorGas: true, // Auto-sponsors gas via Thirdweb paymaster (fund via dashboard if needed)
           }}
           // No wallets array - Thirdweb will auto-detect browser wallets (MetaMask, Coinbase, etc.)
           // Users connect with regular wallet first, then use setup page to create smart wallet
