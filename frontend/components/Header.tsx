@@ -147,11 +147,10 @@ export default function Header() {
         <ConnectButton
           client={client}
           accountAbstraction={{
-            chain, // Enables smart account conversion for the target chain (e.g., Base Sepolia)
-            sponsorGas: true, // Auto-sponsors gas via Thirdweb paymaster (fund via dashboard if needed)
+            chain,
+            sponsorGas: true,
           }}
-          // No wallets array - Thirdweb will auto-detect browser wallets (MetaMask, Coinbase, etc.)
-          // Users connect with regular wallet first, then use setup page to create smart wallet
+          
           connectButton={{
             label: "Connect Wallet",
             className: "bg-cosmic-blue hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-medium transition-all hover:shadow-lg hover:shadow-cosmic-blue/50"
