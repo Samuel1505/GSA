@@ -7,7 +7,7 @@
  */
 
 import { createThirdwebClient } from "thirdweb";
-import { baseSepolia } from "thirdweb/chains";
+import { bscTestnet } from "thirdweb/chains";
 import { smartWallet } from "thirdweb/wallets";
 
 // Get Thirdweb Client ID from environment variable
@@ -22,8 +22,8 @@ export const client = createThirdwebClient({
   clientId: thirdwebClientId || "YOUR_CLIENT_ID_HERE", // Fallback for development
 });
 
-// Chain configuration
-export const chain = baseSepolia;
+// Chain configuration - BNB Smart Chain Testnet
+export const chain = bscTestnet;
 
 /**
  * Smart Wallet Configuration
@@ -32,10 +32,10 @@ export const chain = baseSepolia;
  * - Automatic smart account creation
  * - Gas sponsorship by Thirdweb
  * - ERC-4337 account abstraction
- * - Zero ETH required for users
+ * - Zero BNB required for users
  */
 export const smartWalletConfig = smartWallet({
-  chain: baseSepolia,
+  chain: bscTestnet,
   sponsorGas: true, // Enable automatic gas sponsorship
 });
 
@@ -43,8 +43,8 @@ export const smartWalletConfig = smartWallet({
  * Connect smart wallet from active account
  */
 export async function connectSmartWallet(activeAccount: any) {
-  console.log(' Connecting Thirdweb smart wallet...');
-  console.log(' Active account:', activeAccount?.address);
+  console.log('Connecting Thirdweb smart wallet...');
+  console.log('Active account:', activeAccount?.address);
 
   if (!activeAccount) {
     throw new Error('No active account provided');
@@ -57,7 +57,7 @@ export async function connectSmartWallet(activeAccount: any) {
     ...activeAccount
   };
 
-  console.log('🔧 Using compatible account:', compatibleAccount);
+  console.log('Using compatible account:', compatibleAccount);
 
   try {
     const wallet = await smartWalletConfig.connect({
@@ -67,15 +67,14 @@ export async function connectSmartWallet(activeAccount: any) {
 
     // Get address from the wallet object
     const address = wallet.address;
-    console.log(' Smart wallet connected:', address);
+    console.log('Smart wallet connected:', address);
 
     return wallet;
   } catch (error) {
-    console.error(' Failed to connect smart wallet:', error);
+    console.error('Failed to connect smart wallet:', error);
     throw error;
   }
 }
 
-// Contract address
+// Contract address - UPDATE THIS to your BNB testnet contract
 export const CONTRACT_ADDRESS = "0xbc371b61052B4811424643cA41E9A4aFC94dc58e";
-
