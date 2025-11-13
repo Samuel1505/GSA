@@ -1,10 +1,9 @@
-# GSA - Crypto Prediction Market Platform
-
-A decentralized prediction market platform built on Base Sepolia that enables users to create and participate in crypto-related prediction markets with gasless transactions powered by Thirdweb's Account Abstraction.
+# GSA-Predict
+A decentralized prediction market platform built on BNB smartchain that enables users to create and participate in crypto-related prediction markets with gasless transactions powered by Thirdweb's Account Abstraction.
 
 ## 🌟 Overview
 
-GSA (Gasless Smart Account) is a full-stack Web3 application that combines smart contracts, a gasless transaction relayer, and a modern Next.js frontend to provide a seamless prediction market experience. Users can create markets, make predictions, and earn rewards without worrying about gas fees.
+GSA-Predict (Gasless Smart Account) is a full-stack Web3 application that combines smart contracts, a gasless transaction relayer, and a modern Next.js frontend to provide a seamless prediction market experience. Users can create markets, make predictions, and earn rewards without worrying about gas fees.
 
 ### Key Features
 
