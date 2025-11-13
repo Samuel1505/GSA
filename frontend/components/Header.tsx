@@ -94,14 +94,15 @@ export default function Header() {
             href="/"
           >
             <div className="text-2xl font-bold text-white cursor-pointer">
-              <span className="text-cosmic-blue">S</span>
-              <span className="text-cosmic-purple">t</span>
-              <span className="text-cosmic-blue">r</span>
-              <span className="text-cosmic-purple">e</span>
-               <span className="text-cosmic-purple">a</span>
-                <span className="text-cosmic-purple">k</span>
-                 <span className="text-cosmic-purple">B</span>
-                  <span className="text-cosmic-purple">e</span>
+              <span className="text-cosmic-blue">G</span>
+              <span className="text-cosmic-purple">S</span>
+              <span className="text-cosmic-blue">A-</span>
+              <span className="text-cosmic-purple">P</span>
+               <span className="text-cosmic-purple">r</span>
+                <span className="text-cosmic-purple">e</span>
+                 <span className="text-cosmic-purple">d</span>
+                  <span className="text-cosmic-purple">i</span>
+                   <span className="text-cosmic-purple">c</span>
                    <span className="text-cosmic-purple">t</span>
             </div>
           </Link>
